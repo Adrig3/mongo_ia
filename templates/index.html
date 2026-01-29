@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="es">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Selecciona un botón</title>
+		<link rel="stylesheet" href="./static/styles.css">
+	</head>
+	<body>
+		<main class="card" role="main" aria-labelledby="title">
+			<h1 id="title">Bienvenido al selector de IA</h1>
+			<p class="lead">Selecciona una de las siguientes opciones y escribe tu prompt.</p>
+
+			<form id="mainForm" class="radios" aria-label="Opciones de botones">
+				<label>
+					<input type="radio" name="opcion" id="boton1" value="ChatGPT">
+					<span class="radio-btn">ChatGPT</span>
+				</label>
+
+				<label>
+					<input type="radio" name="opcion" id="boton2" value="Gemini">
+					<span class="radio-btn">Gemini</span>
+				</label>
+
+				<label>
+					<input type="radio" name="opcion" id="boton3" value="Perplexity">
+					<span class="radio-btn">Perplexity</span>
+				</label>
+
+				<label>
+					<input type="radio" name="opcion" id="boton4" value="Claude">
+					<span class="radio-btn">Claude</span>
+				</label>
+
+				<label>
+					<input type="radio" name="opcion" id="boton5" value="DeepSeek">
+					<span class="radio-btn">DeepSeek</span>
+				</label>
+		
+				<!-- textarea para el prompt (máx. 200 palabras) -->
+				<div class="input-container">
+					<label for="prompt" class="input-label">Tu prompt</label>
+					<textarea id="prompt" name="prompt" class="prompt" rows="6" placeholder="Escribe aquí tu texto..." aria-describedby="wordCount"></textarea>
+					<div id="wordCount" class="word-counter">0/200 palabras</div>
+				</div>
+
+				<!-- botón enviar -->
+				<div class="form-actions">
+					<button type="submit" id="sendBtn" class="radio-btn" style="min-width:140px;">Enviar</button>
+				</div>
+
+			</form>
+
+			<!-- ventana de output (inicialmente oculta) -->
+			<div id="output" class="output" aria-live="polite" hidden>
+				<div class="output-inner">
+					<h2 class="output-title">Respuesta</h2>
+					<p id="outputText" class="output-text"></p>
+				</div>
+			</div>
+
+			<p class="help">Para hablar con más de una IA a la vez, se requiere el plan pro, ver información <a href="#">aquí</a>.</p>
+
+			<script>
+			// Control de palabras: máximo 200. Cuenta y recorta en el cliente.
+			(function(){
+				const textarea = document.getElementById('prompt');
+				const counter = document.getElementById('wordCount');
+				const form = document.getElementById('mainForm');
+				const output = document.getElementById('output');
+				const outputText = document.getElementById('outputText');
+				const MAX_WORDS = 200;
+
+				function countWords(text){
+					if(!text) return 0;
+					return text.trim().split(/\s+/).filter(Boolean).length;
+				}
+
+				function enforceLimit(){
+					let text = textarea.value;
+					let words = text.trim().split(/\s+/).filter(Boolean);
+					if(words.length > MAX_WORDS){
+						textarea.value = words.slice(0, MAX_WORDS).join(' ');
+						words = words.slice(0, MAX_WORDS);
+					}
+					counter.textContent = `${words.length}/${MAX_WORDS} palabras`;
+				}
+
+				// manejar envío: elegir frase aleatoria, guardar en DB y mostrar output
+				async function handleSubmit(ev){
+					ev.preventDefault();
+					enforceLimit();
+					// obtener IA seleccionada
+					const selected = document.querySelector('input[name="opcion"]:checked');
+					if(!selected){
+						outputText.textContent = 'Por favor selecciona una IA antes de enviar.';
+						output.hidden = false;
+						return;
+					}
+					const iaValue = selected.value;
+
+					// verificar que el usuario ha escrito algo en el prompt
+					const userPrompt = textarea.value.trim();
+					if(!userPrompt){
+						outputText.textContent = 'Por favor escribe algo en el prompt antes de enviar.';
+						output.hidden = false;
+						return;
+					}
+
+					const phrases = [
+						"Aquí tienes una respuesta generada aleatoriamente.",
+						"Resultado: la IA sugiere explorar una idea diferente.",
+						"Frase generada: intenta refinar tu prompt para mayor precisión.",
+						"Respuesta rápida: combina contexto y ejemplo para mejores resultados.",
+						"Salida aleatoria: considera dividir la tarea en pasos más pequeños."
+					];
+					const pick = phrases[Math.floor(Math.random() * phrases.length)];
+
+					// mostrar frase provisional mientras se guarda
+					outputText.textContent = 'Generando respuesta...';
+					output.hidden = false;
+					output.scrollIntoView({behavior: 'smooth', block: 'center'});
+
+					// enviar al servidor para guardar en MongoDB
+					try{
+						const resp = await fetch('/save', {
+							method: 'POST',
+							headers: {'Content-Type': 'application/json'},
+							body: JSON.stringify({ ia: iaValue, text: pick, prompt: userPrompt })
+						});
+						if(!resp.ok){
+							const err = await resp.json().catch(()=>({error: 'unknown'}));
+							outputText.textContent = 'Error guardando en la base de datos: ' + (err.error || resp.statusText);
+							return;
+						}
+						const data = await resp.json();
+						// mostrar resultado con id de documento
+						outputText.innerHTML = `<strong>${pick}</strong><br><small>ID guardado: ${data.id}</small>`;
+					}catch(e){
+						outputText.textContent = 'Error de red al intentar guardar: ' + e.message;
+					}
+				}
+
+				textarea.addEventListener('input', enforceLimit);
+				form.addEventListener('submit', handleSubmit);
+				// inicializar contador si hay contenido prellenado
+				document.addEventListener('DOMContentLoaded', enforceLimit);
+			})();
+			</script>
+		</main>
+	</body>
+</html>
