@@ -1,33 +1,37 @@
-# imports
-from flask import Flask, jsonify, render_template, request, redirect, url_for
-from flask_sqlalchemy import SQLAlchemy
+from flask import Flask, jsonify
+from flask_pymongo import PyMongo
 
 app = Flask(__name__)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///example.db'
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# 🔴 CAMBIA usuario, password y cluster
+app.config["MONGO_URI"] = (
+    "mongodb+srv://gabriel:1234@proyectoia.ubbwsgi.mongodb.net/main"
+    "?retryWrites=true&w=majority"
+)
 
-db = SQLAlchemy(app)
+mongo = PyMongo(app)
 
-# bbdd
-class Book(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    titulo = db.Column(db.String(20))
-    autor = db.Column(db.String(20))
-    genero = db.Column(db.String(10))
-    fecha_publicacion = db.Column(db.String(20))
 
-    def __repr__(self):
-        return f'Libro {self.titulo}'
+@app.route("/")
+def test_connection():
+    # insertar algo
+    result = mongo.db.main.insert_one({
+        "mensaje": "Hola MongoDB Atlas 🚀"
+    })
 
-# endpoint de testing
-@app.route('/prueba')
-def prueba():
-    return render_template("prueba.html")
+    # leer lo insertado
+    doc = mongo.db.main.find_one(
+        {"_id": result.inserted_id}
+    )
 
+    # convertir ObjectId a string
+    doc["_id"] = str(doc["_id"])
+
+    return jsonify({
+        "status": "OK",
+        "documento": doc
+    })
 
 
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
     app.run(debug=True)
